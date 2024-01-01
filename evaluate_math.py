@@ -16,7 +16,7 @@ prim
 import math
 from math import *
 
-scope = { 'two': lambda x: lambda y: x + y }
+scope = { 'two': lambda x: lambda y: x + y, 'z': lambda: lambda x = 1: x }
 scope_globals = globals()
 
 for method in dir(math):
@@ -30,11 +30,10 @@ class Ch:
         self.s = s
         self.c = c
     
-    def peek(self):
-        try:
-            return self.s[self.c]
-        except IndexError:
-            return ''
+    def peek(self, n = 1):
+        return self.s[self.c:self.c+n]
+        # except IndexError:
+            # return ''
     
     def is_over(self):
         return self.c >= len(self.s)
@@ -95,23 +94,46 @@ def prim(s, b = 0):
         s.skip_space()
         return v
     
-    elif s.peek().isdigit():
+    elif s.peek().isdigit() or s.peek() == '.':
         v = ''
-        while not s.is_over() and s.peek().isdigit():
+        is_float = False
+        while not s.is_over() and (s.peek().isdigit() or s.peek() == '.'):
+            if s.peek() == '.':
+                is_float = True
             v += s.adv()
         s.skip_space()
-        return {'const': int(v, 10) }
+        if not is_float:
+            return {'const': int(v, 10) }
+        else:
+            return {'const': float(v) }
         
     elif s.peek() >= 'a' and s.peek() <= 'z':
         v = ''
         while not s.is_over() and (s.peek().isdigit() or s.peek().isalpha() or s.peek() == '_'):
             v += s.adv()
         s.skip_space()
+
+        if s.peek() != '(':
+            return { 'var': v }
         
         left = {}
         while True:
             if s.peek() == '(':
+                c = s.c
+                s.adv()
+                s.skip_space()
                 args = []
+                if s.peek() == ')':
+                    s.adv()
+                    s.skip_space()
+                    if left.get('args') != None:
+                        left['args'].append(args)
+                    else:
+                        left = { 'func': v, 'args': [ args ] }
+                    continue
+                else:
+                    s.c = c
+                
                 while True:
                     args.append(expr(s, 1))
                     
@@ -119,17 +141,15 @@ def prim(s, b = 0):
                         continue
                     elif s.peek() == ')':
                         s.adv()
+                        s.skip_space()
                         if left.get('args') != None:
                             left['args'].append(args)
                         else:
-                            left = { 'func': v, 'args': [ args ] }
-                        s.skip_space()
+                            left = { 'func': v, 'args': [ args ] }                        
                         break
                     else:
-                        raise SyntaxError('unmatched ' + s.peek())
+                        raise SyntaxError('unmatched "' + s.peek() + '"')
             else:
-                if left == {}:
-                    return { 'var': v }
                 return left
         
     
@@ -202,3 +222,10 @@ if __name__ == '__main__':
     assert calc('two(pow(10,  10))(2+1)+1', showtree=True) == scope['two'](math.pow(10, 10))(2+1)+1
     
     assert calc('10 * (pi + 1) + 40', showtree=True) == 10 * (math.pi + 1) + 40
+
+    assert calc('cos(10+10)', showtree=True) == cos(10+10)
+
+    assert calc('z()(1)', showtree=True) == scope['z']()(1)
+
+    assert calc('1/22 + 0.5') == 1/22 + 0.5
+    assert calc('1/22 + .51', showtree=True) == 1/22 + .51
