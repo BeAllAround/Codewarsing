@@ -12,6 +12,19 @@ prim
 '('  ')'
 
 '''
+
+import math
+from math import *
+
+scope = { 'two': lambda x: lambda y: x + y }
+scope_globals = globals()
+
+for method in dir(math):
+    if not method.startswith('__'):
+        scope[method] = scope_globals[method]
+
+# print(scope)
+
 class Ch:
     def __init__(self, s, c = 0):
         self.s = s
@@ -88,6 +101,37 @@ def prim(s, b = 0):
             v += s.adv()
         s.skip_space()
         return {'const': int(v, 10) }
+        
+    elif s.peek() >= 'a' and s.peek() <= 'z':
+        v = ''
+        while not s.is_over() and (s.peek().isdigit() or s.peek().isalpha() or s.peek() == '_'):
+            v += s.adv()
+        s.skip_space()
+        
+        left = {}
+        while True:
+            if s.peek() == '(':
+                args = []
+                while True:
+                    args.append(expr(s, 1))
+                    
+                    if s.peek() == ',': 
+                        continue
+                    elif s.peek() == ')':
+                        s.adv()
+                        if left.get('args') != None:
+                            left['args'].append(args)
+                        else:
+                            left = { 'func': v, 'args': [ args ] }
+                        s.skip_space()
+                        break
+                    else:
+                        raise SyntaxError('')
+            else:
+                if left == {}:
+                    return { 'var': v }
+                return left
+        
     
     elif s.peek() == '-':
         s.adv()
@@ -100,6 +144,8 @@ def prim(s, b = 0):
 def resolve_tree(tree):
     op = tree.get('op')
     c = tree.get('const')
+    func = tree.get('func')
+    var = tree.get('var')
     
     if op:
         left = tree.get('a')
@@ -116,9 +162,43 @@ def resolve_tree(tree):
     if c != None:
         return c
         
+    if func != None:
+        args = tree['args']
+        _args = []
+        try:
+            value = scope[func]
+        except KeyError:
+            raise NameError('"' + func + '" not a function')
+        
+        for arg in args:
+            value = value(*list(map(resolve_tree, arg)))
+        
+        return value
+     
+    if var != None:
+        try:
+            return scope[var]
+        except KeyError:
+            raise NameError('"' + var + '" not defined')
     
-def calc(expression):
+def calc(expression, **kwargs):
     ch = Ch(expression)
     tree = expr(ch)
     
+    kwargs.get('showtree') == True and print(tree)
+    
+    if not ch.is_over():
+        raise SyntaxError('unmached ' + ch.peek())
+    
     return resolve_tree(tree)
+
+if __name__ == '__main__':
+    assert calc('1+(8*10)*10') == 1+(8*10)*10
+    
+    assert calc('pow(1+1, 2+2)', showtree=True) == math.pow(1+1, 2+2)
+    assert calc('pow(1+1, 2+2)*2', showtree=True) == math.pow(1+1, 2+2)*2
+    assert calc('pow(pow(1+1, 2+2), 2+2)*2', showtree=True) == math.pow(math.pow(1+1, 2+2), 2+2)*2
+    
+    assert calc('two(pow(10, 10))(2+1)+1', showtree=True) == scope['two'](math.pow(10, 10))(2+1)+1
+    
+    assert calc('10 * (pi + 1) + 40', showtree=True) == 10 * (math.pi + 1) + 40
