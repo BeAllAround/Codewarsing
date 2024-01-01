@@ -126,7 +126,7 @@ def prim(s, b = 0):
                         s.skip_space()
                         break
                     else:
-                        raise SyntaxError('')
+                        raise SyntaxError('unmatched ' + s.peek())
             else:
                 if left == {}:
                     return { 'var': v }
@@ -167,13 +167,13 @@ def resolve_tree(tree):
         _args = []
         try:
             value = scope[func]
+            for arg in args:
+                value = value(*map(resolve_tree, arg))
+            return value
         except KeyError:
             raise NameError('"' + func + '" not a function')
         
-        for arg in args:
-            value = value(*list(map(resolve_tree, arg)))
-        
-        return value
+
      
     if var != None:
         try:
@@ -193,12 +193,12 @@ def calc(expression, **kwargs):
     return resolve_tree(tree)
 
 if __name__ == '__main__':
-    assert calc('1+(8*10)*10') == 1+(8*10)*10
+    assert calc('1+((8*10))*10') == 1+((8*10))*10
     
     assert calc('pow(1+1, 2+2)', showtree=True) == math.pow(1+1, 2+2)
     assert calc('pow(1+1, 2+2)*2', showtree=True) == math.pow(1+1, 2+2)*2
     assert calc('pow(pow(1+1, 2+2), 2+2)*2', showtree=True) == math.pow(math.pow(1+1, 2+2), 2+2)*2
     
-    assert calc('two(pow(10, 10))(2+1)+1', showtree=True) == scope['two'](math.pow(10, 10))(2+1)+1
+    assert calc('two(pow(10,  10))(2+1)+1', showtree=True) == scope['two'](math.pow(10, 10))(2+1)+1
     
     assert calc('10 * (pi + 1) + 40', showtree=True) == 10 * (math.pi + 1) + 40
